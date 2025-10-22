@@ -122,6 +122,7 @@ function NavButtons({
     background: "transparent",
     color: "#e7e7e7",
     width: "100%",
+    minWidth: 0, // ✅ ajouté : évite que les boutons dépassent et forcent le menu en colonne
     padding: layout === "row" ? "8px 10px" : "8px 4px",
     borderRadius: 12,
     display: "flex",
@@ -134,7 +135,7 @@ function NavButtons({
       "transform 120ms ease, background 160ms ease, color 160ms ease, border 160ms ease",
     fontSize: 12,
     lineHeight: 1.1,
-  };
+  };  
 
   const activeBg =
     "radial-gradient(120px 60px at 50% -20%, rgba(245,158,11,.35), rgba(245,158,11,.08))";
