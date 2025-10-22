@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import StatsPage from "./pages/StatsPage";
+import type { Mult, Dart, Player } from "./types";
 
 /* =========================================
    Utils
@@ -3146,9 +3147,6 @@ function X01Keypad({
 }
 
 // x01.ts
-export type Mult = 1 | 2 | 3;
-export type Dart = { value: number; mult: Mult }; // 0..20, 25 (bull S=25, D=50)
-export type Player = { id: string; name: string; score: number };
 
 export type VisitResult = {
   nextScore: number;
