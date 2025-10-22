@@ -71,11 +71,6 @@ export function BottomNav({
         bottom: 0,
         width: "100%",
         zIndex: 99,
-        display: "grid",
-        gridTemplateColumns: "repeat(7, 1fr)", // ✅ 7 icônes horizontales
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 0,
         padding: "6px 0",
         borderTop: "1px solid rgba(255,255,255,.07)",
         background:
@@ -84,7 +79,19 @@ export function BottomNav({
         WebkitBackdropFilter: "blur(10px)",
       }}
     >
-      <NavButtons route={route} setRoute={setRoute} layout="grid" />
+      {/* ✅ cette div interne force l’affichage en grille horizontale */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(7, 1fr)",
+          alignItems: "center",
+          justifyItems: "center",
+          gap: 0,
+          width: "100%",
+        }}
+      >
+        <NavButtons route={route} setRoute={setRoute} layout="grid" />
+      </div>
     </nav>
   );
 }
