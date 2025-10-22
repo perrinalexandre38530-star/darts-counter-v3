@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "dev.pages.dartscounter.twa",
+      "sha256_cert_fingerprints": [
+        "BB:0D:F7:A2:20:C7:68:CD:98:64:99:E9:9D:4B:53:31:7F:D0:12:C1:38:AE:FC:C7:02:96:FE:85:4B:33:27:A6"
+      ]
+    }
+  }
+]

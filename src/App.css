@@ -1,0 +1,145 @@
+/* ====== Darts Counter – Beauty Pack ====== */
+:root{
+  --c-primary: #f59e0b;    /* surchargées par App.tsx */
+  --c-secondary: #0ea5e9;
+  --c-surface: #0a0a0a;
+  --c-text: #f5f5f5;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+
+  --elev-1: 0 1px 2px rgba(0,0,0,.2), 0 2px 8px rgba(0,0,0,.25);
+  --elev-2: 0 8px 24px rgba(0,0,0,.35);
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  color: var(--c-text);
+  background:
+    radial-gradient(1200px 600px at -10% -20%, rgba(245,158,11,.20), transparent 60%),
+    radial-gradient(900px 500px at 110% 10%, rgba(14,165,233,.15), transparent 60%),
+    linear-gradient(180deg, #0b0b0b 0%, #0a0a0a 20%, #090909 100%);
+}
+
+/* Typo */
+h1,h2,h3 { letter-spacing: -.02em; }
+h1 { font-weight: 700; }
+h2,h3 { font-weight: 600; }
+
+/* Layout helper */
+.max-w-6xl { max-width: 1200px; }
+
+/* Cards / panneaux : effet glass + bordure douce */
+.bg-neutral-900,
+.bg-neutral-950,
+section.rounded-2xl {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  backdrop-filter: blur(6px);
+  box-shadow: var(--elev-1);
+}
+
+/* Boutons génériques */
+button {
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: var(--c-text);
+  border-radius: var(--radius-md);
+  padding: .6rem .9rem;
+  cursor: pointer;
+  transition: transform .06s ease, filter .15s ease, background .2s ease, border-color .2s ease;
+}
+button:hover { filter: brightness(1.08); }
+button:active { transform: translateY(1px) scale(0.99); }
+button:disabled { opacity:.5; cursor: not-allowed; }
+
+/* Bouton primaire (couleur) */
+button.primary,
+button[style*="var(--c-primary)"],
+.pill-primary {
+  background: var(--c-primary);
+  color: #0a0a0a !important;
+  border-color: color-mix(in oklab, var(--c-primary) 75%, black);
+  box-shadow: 0 8px 20px color-mix(in oklab, var(--c-primary) 25%, transparent);
+}
+
+/* Petits “chips” / étiquettes */
+.badge {
+  display:inline-block;
+  padding: .25rem .5rem;
+  border-radius: 999px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.14);
+  font-size: .8rem;
+}
+
+/* Inputs / selects */
+input, select {
+  background: rgba(255,255,255,0.06);
+  color: var(--c-text);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: var(--radius-md);
+  padding: .55rem .7rem;
+  outline: none;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+input:focus, select:focus {
+  border-color: var(--c-primary);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--c-primary) 35%, transparent);
+}
+
+/* Raccourcis utilitaires (equivalents Tailwind minimalistes) */
+.rounded-2xl { border-radius: var(--radius-xl); }
+.rounded-xl { border-radius: var(--radius-lg); }
+.rounded-lg { border-radius: var(--radius-md); }
+.border { border: 1px solid rgba(255,255,255,0.10); }
+.border-neutral-700 { border-color: rgba(255,255,255,0.18); }
+.border-neutral-800 { border-color: rgba(255,255,255,0.12); }
+.bg-neutral-800 { background: rgba(255,255,255,0.07); }
+.bg-neutral-900 { background: rgba(255,255,255,0.05); }
+.bg-neutral-950 { background: rgba(255,255,255,0.03); }
+.text-neutral-400 { color: rgba(255,255,255,0.7); }
+.text-neutral-300 { color: rgba(255,255,255,0.8); }
+.text-neutral-100 { color: rgba(255,255,255,0.95); }
+.opacity-70 { opacity:.7; }
+.font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+
+/* Grilles (fallbacks simples) */
+.grid { display: grid; gap: 1rem; }
+.grid-cols-1 { grid-template-columns: 1fr; }
+@media (min-width: 1024px) {
+  .lg\\:grid-cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .lg\\:col-span-2 { grid-column: span 2; }
+}
+
+/* Marges / paddings rapides */
+.p-4 { padding: 1rem; }
+.p-5 { padding: 1.25rem; }
+.px-3 { padding-left: .75rem; padding-right: .75rem; }
+.py-2 { padding-top: .5rem; padding-bottom: .5rem; }
+.mb-3 { margin-bottom: .75rem; }
+.mb-4 { margin-bottom: 1rem; }
+.mt-2 { margin-top: .5rem; }
+.mt-3 { margin-top: .75rem; }
+
+/* En-tête */
+header .title {
+  display:flex; flex-direction:column; gap:.25rem;
+}
+header .actions { display:flex; flex-wrap:wrap; gap:.5rem; }
+header { margin-bottom: 1.2rem; }
+
+/* Petits effets d’accentuation */
+.highlight {
+  background: linear-gradient(90deg, color-mix(in oklab, var(--c-primary) 30%, transparent), transparent 70%);
+  border-radius: var(--radius-sm);
+  padding: .1rem .3rem;
+}
+
+/* Listes (historique, etc.) */
+ul.divide-y > li { border-bottom: 1px solid rgba(255,255,255,0.08); }

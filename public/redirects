@@ -1,0 +1,4 @@
+/icons/*                /icons/:splat            200
+/manifest.webmanifest    /manifest.webmanifest    200
+/.well-known/*           /.well-known/:splat       200
+/*                      /index.html               200

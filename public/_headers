@@ -1,0 +1,12 @@
+/*
+  Content-Security-Policy: default-src 'self';
+    img-src 'self' data: blob: https:;
+    font-src 'self' https://fonts.gstatic.com data:;
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+    style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com;
+    script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline';
+    connect-src 'self' https: wss:;
+    worker-src 'self' blob:;
+    manifest-src 'self';
+  Referrer-Policy: no-referrer
+  Permissions-Policy: camera=(), microphone=()
