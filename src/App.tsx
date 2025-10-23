@@ -1,8 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import StatsPage from "./pages/StatsPage";
-import type { Mult, Dart, Player } from "./types";
-import { TopGlassNav, BottomNav } from "./components/Navigation";
-import { Icon } from "./components/Icon";
+
+import type { Route, Dart, Player } from "./types";          // <- tes types globaux
+import { TopGlassNav, BottomNav } from "./components/Navigation"; // <- ✅ importe bien TopGlassNav + BottomNav
+import X01Setup from "./components/X01Setup";                // <- le composant X01Setup
+import type { X01Settings } from "./components/X01Setup";    // <- son type (facultatif)
+import { Icon } from "./components/Icon";   // ⬅️ nécessaire pour GlassButton/SectionTabs
+type IconName = "home" | "dart" | "user" | "users" | "folder" | "chart" | "settings"; // ⬅️ le type local
 
 /* =========================================
    Utils
@@ -637,397 +640,376 @@ function OnlineLobbyPage({
 /* =========================================
    App
    ========================================= */
-export default function App() {
-  const [route, setRoute] = useLocalStorage<Route>("dc.route", "home");
-  const [arcade, setArcade] = useLocalStorage<boolean>("dc.arcade", false);
-
-  // Données locales
-  const [teams, setTeams] = useLocalStorage<Team[]>("dc.teams", []);
-  const [profiles, setProfiles] = useLocalStorage<Profile[]>("dc.profiles", [
-    { id: uid(), name: "Profil 1", stats: { games: 0, legs: 0, sets: 0, darts: 0 } },
-  ]);
-
-  const [rules, setRules] = useLocalStorage<MatchRules>("dc.rules", DEFAULT_RULES);
-  const [mode, setMode] = useLocalStorage<Mode>("dc.mode", "X01");
-
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [activeId, setActiveId] = useState<string>("");
-
-  const [events, setEvents] = useLocalStorage<GameEvent[]>("dc.events", []);
-  const [games, setGames] = useLocalStorage<GameRecord[]>("dc.games", []);
-  const [currentGameId, setCurrentGameId] = useLocalStorage<string | null>("dc.currentGameId", null);
-
-  // Comptes / Online
-  const [account, setAccount] = useLocalStorage<Account | null>("dc.account", null);
-  const [loggedIn, setLoggedIn] = useLocalStorage<boolean>("dc.session", false);
-  const [friends, setFriends] = useLocalStorage<Friend[]>("dc.friends", []);
-  const [lobbies, setLobbies] = useLocalStorage<Lobby[]>("dc.lobbies", []);
-
-  // PWA install prompt
-  const deferredPrompt = useRef<any>(null);
-  useEffect(() => {
-    const onBip = (e: any) => {
-      e.preventDefault();
-      deferredPrompt.current = e;
-    };
-    window.addEventListener("beforeinstallprompt", onBip);
-    return () => window.removeEventListener("beforeinstallprompt", onBip);
-  }, []);
-
-  // Réglages voix
-  const [ttsEnabled, setTtsEnabled] = useLocalStorage<boolean>("dc.tts.enabled", false);
-  const [ttsLang, setTtsLang] = useLocalStorage<string>("dc.tts.lang", "fr-FR");
-
-  function speak(text: string) {
-    try {
-      if (!ttsEnabled) return;
-      if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = ttsLang;
-      u.rate = 1;
-      u.pitch = 1;
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(u);
-    } catch {}
-  }
-
-  // Theme apply
-  useEffect(() => {
-    const r = document.documentElement;
-    r.style.setProperty("--c-primary", DEFAULT_THEME.primary);
-    r.style.setProperty("--c-text", DEFAULT_THEME.text);
-  }, []);
-
-  // Depuis GamesHub → Lobby
-  function startLobby(m: Mode) {
-    setMode(m);
-    setRoute("lobby");
-  }
-
-  function shuffle<T>(arr: T[]): T[] {
-    const a = [...arr];
-    for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
-  }
-
-  // Launch game from Lobby
-  function launchGame(selected: Player[], customRules?: MatchRules) {
-    const r = customRules || rules;
-    const ordered = r.randomOrder ? shuffle(selected) : selected;
-
-    const gameId = uid();
-    setGames((gs) => [
-      ...gs,
-      {
-        id: gameId,
-        mode,
-        startedAt: Date.now(),
-        players: ordered.map((p) => ({ profileId: p.profileId || p.id, name: p.name })),
-      },
+   export default function App() {
+    const [route, setRoute] = useLocalStorage<Route>("dc.route", "home");
+    const [arcade, setArcade] = useLocalStorage<boolean>("dc.arcade", false);
+  
+    // Données locales
+    const [teams, setTeams] = useLocalStorage<Team[]>("dc.teams", []);
+    const [profiles, setProfiles] = useLocalStorage<Profile[]>("dc.profiles", [
+      { id: uid(), name: "Profil 1", stats: { games: 0, legs: 0, sets: 0, darts: 0 } },
     ]);
-    setCurrentGameId(gameId);
-
-    const js = ordered.map((p) => ({
-      id: uid(),
-      name: p.name,
-      profileId: p.profileId || undefined,
-      avatarDataUrl: p.avatarDataUrl,
-      teamId: p.teamId,
-      x01Score: r.startingScore,
-      legs: 0,
-      sets: 0,
-      dartsUsed: 0,
-      lastScore: 0,
-      scoredTotal: 0,
-      lastDarts: [],
-      points: 0,
-      lives: 3,
-      atcTarget: 1,
-      killerTarget: (p as any).killerTarget,
-      isKiller: (p as any).isKiller,
-      shanghaiRound: 1,
-    }));
-
-    setPlayers(js);
-    setActiveId(js[0]?.id || "");
-    if (customRules) setRules(customRules);
-    setRoute("game");
-  }
-
-   function SimpleDialog({
-  title, message, actions,
-}: {
-  title: string;
-  message: string;
-  actions: Array<{ label: string; onClick: () => void }>;
-}) {
-  return (
-    <div className="fixed inset-0 bg-black/55 grid place-items-center z-50">
-      <div className="bg-zinc-900 text-white p-4 rounded-2xl w-[min(92vw,440px)] space-y-3">
-        <h3 className="text-lg font-semibold">{title}</h3>
-        <p>{message}</p>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {actions.map((a, i) => (
-            <button
-              key={i}
-              onClick={a.onClick}
-              className="rounded-xl py-2 px-3 bg-white/10 hover:bg-white/15"
-            >
-              {a.label}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-  /* =====================================================
-     🎯 Logique X01 : manche/fin de partie (dialog + handler)
-     (Assure-toi d'avoir importé depuis "./x01")
-     ===================================================== */
-  const startingScore = rules?.startingScore ?? 501;
-  const totalLegs = (rules as any)?.totalLegs ?? 3; // adapte si tu as ce champ dans tes règles
-  const roster = profiles.map(p => ({ id: p.id, name: p.name }));
-
-  const [match, setMatch] = React.useState(() =>
-    createMatch(startingScore, roster, totalLegs)
-  );
-  const [dialog, setDialog] = React.useState<null | {
-    title: string;
-    message: string;
-    actions: Array<{ label: string; onClick: () => void }>;
-  }>(null);
-
-  // Recrée une manche si les profils ou le startingScore changent sensiblement
-  useEffect(() => {
-    setMatch(createMatch(startingScore, roster, totalLegs));
-  }, [startingScore, totalLegs, profiles.length]); // simple, évite un roster obsolète
-
-  function handleSubmitX01(darts: Dart[]) {
-    setMatch(prev => {
-      const { match: updated, legEnded, winnerId } = playVisit(structuredClone(prev), darts);
-
-      if (legEnded && winnerId) {
-        const who = updated.leg.players[winnerId].name;
-        const isLastLeg = updated.currentLegNumber >= updated.totalLegs;
-
-        setDialog({
-          title: `Manche ${updated.currentLegNumber} terminée`,
-          message: `${who} gagne la manche 🎯`,
-          actions: [
-            {
-              label: "Rejouer cette manche",
-              onClick: () => {
-                setMatch(m => {
-                  const cur = structuredClone(m);
-                  cur.leg = createLeg(cur.leg.startingScore, Object.values(cur.leg.players));
-                  return cur;
-                });
-                setDialog(null);
-              },
-            },
-            ...(isLastLeg
-              ? [{
-                  label: "Terminer le match",
-                  onClick: () => setDialog(null),
-                }]
-              : [{
-                  label: "Manche suivante",
-                  onClick: () => {
-                    setMatch(m => nextLeg(structuredClone(m), true));
-                    setDialog(null);
-                  },
-                }]
-            ),
-          ],
-        });
+  
+    const [rules, setRules] = useLocalStorage<MatchRules>("dc.rules", DEFAULT_RULES);
+    const [mode, setMode] = useLocalStorage<Mode>("dc.mode", "X01");
+  
+    const [players, setPlayers] = useState<Player[]>([]);
+    const [activeId, setActiveId] = useState<string>("");
+  
+    const [events, setEvents] = useLocalStorage<GameEvent[]>("dc.events", []);
+    const [games, setGames] = useLocalStorage<GameRecord[]>("dc.games", []);
+    const [currentGameId, setCurrentGameId] = useLocalStorage<string | null>("dc.currentGameId", null);
+  
+    // Comptes / Online
+    const [account, setAccount] = useLocalStorage<Account | null>("dc.account", null);
+    const [loggedIn, setLoggedIn] = useLocalStorage<boolean>("dc.session", false);
+    const [friends, setFriends] = useLocalStorage<Friend[]>("dc.friends", []);
+    const [lobbies, setLobbies] = useLocalStorage<Lobby[]>("dc.lobbies", []);
+  
+    // PWA install prompt
+    const deferredPrompt = useRef<any>(null);
+    useEffect(() => {
+      const onBip = (e: any) => {
+        e.preventDefault();
+        deferredPrompt.current = e;
+      };
+      window.addEventListener("beforeinstallprompt", onBip);
+      return () => window.removeEventListener("beforeinstallprompt", onBip);
+    }, []);
+  
+    // Réglages voix
+    const [ttsEnabled, setTtsEnabled] = useLocalStorage<boolean>("dc.tts.enabled", false);
+    const [ttsLang, setTtsLang] = useLocalStorage<string>("dc.tts.lang", "fr-FR");
+    function speak(text: string) {
+      try {
+        if (!ttsEnabled) return;
+        if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = ttsLang;
+        u.rate = 1;
+        u.pitch = 1;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(u);
+      } catch {}
+    }
+  
+    // Thème
+    useEffect(() => {
+      const r = document.documentElement;
+      r.style.setProperty("--c-primary", DEFAULT_THEME.primary);
+      r.style.setProperty("--c-text", DEFAULT_THEME.text);
+    }, []);
+  
+    // Depuis GamesHub → Lobby
+    function startLobby(m: Mode) {
+      setMode(m);
+      setRoute("lobby");
+    }
+  
+    function shuffle<T>(arr: T[]): T[] {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
       }
-
-      return updated;
-    });
-  }
-
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: arcade
-          ? "radial-gradient(1200px 600px at 30% -10%, #0d0f2a, #050510 40%, #000), linear-gradient(135deg, rgba(0,255,204,.08), rgba(255,0,128,.05))"
-          : "radial-gradient(1200px 600px at 30% -10%, #141517, #0a0a0a 40%, #000)",
-        color: "#fff",
-        paddingBottom: 80,
-        fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
-      }}
-    >
-      <GlobalStyles />
-      <TopGlassNav route={route} setRoute={setRoute} />
-
-      <main style={{ maxWidth: 1000, margin: "0 auto", padding: 16 }}>
-        {route === "home" && (
-          <Home
-            account={account}
-            loggedIn={loggedIn}
-            onGoGames={() => setRoute("games")}
-            onGoProfiles={() => setRoute("profiles")}
-            onGoStats={() => setRoute("stats")}
-            onGoOnline={() => setRoute("online")}
-            onGoLogin={() => setRoute("account")}
-          />
-        )}
-
-        {route === "games" && <GamesHub current={mode} onPick={startLobby} />}
-
-        {route === "profiles" && (
-          <ProfilesPage
-            profiles={profiles}
-            setProfiles={setProfiles}
-            teams={teams}
-            setTeams={setTeams}
-            events={events}
-            account={account}
-            loggedIn={loggedIn}
-            onOpenAccount={() => setRoute("account")}
-          />
-        )}
-
-        {route === "allgames" && (
-          <AllGamesPage
-            games={games}
-            events={events}
-            profiles={profiles}
-            onOpen={(id) => console.log("open", id)}
-          />
-        )}
-
-        {route === "lobby" && (
-          <LobbyPage
-            mode={mode}
-            teams={teams}
-            profiles={profiles}
-            rules={rules}
-            setRules={setRules}
-            onStart={launchGame}
-            onBack={() => setRoute("games")}
-          />
-        )}
-
-        {route === "game" && (
-          <GamePage
-            mode={mode}
-            rules={rules}
-            players={players}
-            setPlayers={setPlayers}
-            activeId={activeId}
-            setActiveId={setActiveId}
-            onEnd={() => setRoute("home")}
-            speak={speak}
-            ttsLang={ttsLang}
-            /* ⬇️ Si ton GamePage accepte un prop pour valider une volée X01,
-               passe-le ici. Sinon, garde-le côté GamePage. */
-            // onX01Submit={handleSubmitX01}
-          />
-        )}
-
-        {route === "gamestats" && (
-          <GameStatsPage players={players} onBack={() => setRoute("game")} />
-        )}
-
-        {route === "stats" && <StatsPage profiles={profiles} />}
-
-        {route === "teams" && <TeamsPage teams={teams} setTeams={setTeams} />}
-
-        {route === "settings" && (
-          <SettingsPage
-            rules={rules}
-            setRules={setRules}
-            arcade={arcade}
-            setArcade={setArcade}
-            ttsEnabled={ttsEnabled}
-            setTtsEnabled={setTtsEnabled}
-            ttsLang={ttsLang}
-            setTtsLang={setTtsLang}
-          />
-        )}
-
-        {/* === NOUVELLES ROUTES === */}
-        {route === "account" && (
-          <AccountPage
-            account={account}
-            loggedIn={loggedIn}
-            onCreate={(acc) => {
-              setAccount(acc);
-              setLoggedIn(true);
-              setRoute("home");
-            }}
-            onLogin={(ok) => {
-              if (ok) {
-                setLoggedIn(true);
-                setRoute("home");
-              }
-            }}
-            onLogout={() => setLoggedIn(false)}
-            onGoFriends={() => setRoute("friends")}
-          />
-        )}
-
-        {route === "friends" && (
-          <FriendsPage
-            friends={friends}
-            setFriends={setFriends}
-            onBack={() => setRoute("account")}
-          />
-        )}
-
-        {route === "online" && (
-          <OnlineLobbyPage
-            account={account}
-            loggedIn={loggedIn}
-            lobbies={lobbies}
-            setLobbies={setLobbies}
-            onBack={() => setRoute("home")}
-          />
-        )}
-      </main>
-
-      {/* Overlay de fin de manche (dialog simple) */}
-      {dialog && (
-        <div className="fixed inset-0 z-50 grid place-items-center" style={{ background: "rgba(0,0,0,.55)" }}>
-          <div className="rounded-2xl p-4" style={{ background: "#111", color: "#fff", width: "min(92vw, 440px)" }}>
-            <h3 style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>{dialog.title}</h3>
-            <p style={{ opacity: .9, marginBottom: 12 }}>{dialog.message}</p>
-            <div style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr 1fr" }}>
-              {dialog.actions.map((a, i) => (
-                <button key={i} onClick={a.onClick}
-                  style={{
-                    padding: "10px 12px",
-                    borderRadius: 12,
-                    border: "none",
-                    background: "#fff1",
-                    color: "#fff",
-                    cursor: "pointer"
-                  }}>
+      return a;
+    }
+  
+    // Lancement d’une partie depuis le Lobby
+    function launchGame(selected: Player[], customRules?: MatchRules) {
+      const r = customRules || rules;
+      const ordered = (r as any).randomOrder ? shuffle(selected) : selected;
+  
+      const gameId = uid();
+      setGames((gs) => [
+        ...gs,
+        {
+          id: gameId,
+          mode,
+          startedAt: Date.now(),
+          players: ordered.map((p) => ({ profileId: p.profileId || p.id, name: p.name })),
+        },
+      ]);
+      setCurrentGameId(gameId);
+  
+      const js = ordered.map((p) => ({
+        id: uid(),
+        name: p.name,
+        profileId: p.profileId || undefined,
+        avatarDataUrl: p.avatarDataUrl,
+        teamId: p.teamId,
+        x01Score: rules.startingScore,
+        legs: 0,
+        sets: 0,
+        dartsUsed: 0,
+        lastScore: 0,
+        scoredTotal: 0,
+        lastDarts: [],
+        points: 0,
+        lives: 3,
+        atcTarget: 1,
+        killerTarget: (p as any).killerTarget,
+        isKiller: (p as any).isKiller,
+        shanghaiRound: 1,
+      }));
+  
+      setPlayers(js);
+      setActiveId(js[0]?.id || "");
+      if (customRules) setRules(customRules);
+      setRoute("game");
+    }
+  
+    /* =========================================
+       SimpleDialog — boîte de dialogue générique
+       ========================================= */
+    function SimpleDialog({
+      title,
+      message,
+      actions,
+    }: {
+      title: string;
+      message: string;
+      actions: Array<{ label: string; onClick: () => void }>;
+    }) {
+      return (
+        <div className="fixed inset-0 bg-black/55 grid place-items-center z-50">
+          <div className="bg-zinc-900 text-white p-4 rounded-2xl w-[min(92vw,440px)] space-y-3">
+            <h3 className="text-lg font-semibold">{title}</h3>
+            <p>{message}</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {actions.map((a, i) => (
+                <button
+                  key={i}
+                  onClick={a.onClick}
+                  className="rounded-xl py-2 px-3 bg-white/10 hover:bg-white/15"
+                >
                   {a.label}
                 </button>
               ))}
             </div>
           </div>
         </div>
-      )}
+      );
+    }
+  
+    /* =====================================================
+       🎯 Logique X01 : manche / fin de partie
+       ===================================================== */
+    const startingScore = rules?.startingScore ?? 501;
+    const totalLegs = (rules as any)?.totalLegs ?? 3;
+    const roster = profiles.map((p) => ({ id: p.id, name: p.name }));
+  
+    const [match, setMatch] = React.useState(() =>
+      createMatch(startingScore, roster, totalLegs)
+    );
+    const [dialog, setDialog] = React.useState<null | {
+      title: string;
+      message: string;
+      actions: Array<{ label: string; onClick: () => void }>;
+    }>(null);
+  
+    useEffect(() => {
+      setMatch(createMatch(startingScore, roster, totalLegs));
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [startingScore, totalLegs, profiles.length]);
+  
+    function handleSubmitX01(darts: Dart[]) {
+      setMatch((prev) => {
+        const { match: updated, legEnded, winnerId } = playVisit(structuredClone(prev), darts);
+  
+        if (legEnded && winnerId) {
+          const who = updated.leg.players[winnerId].name;
+          const isLastLeg = updated.currentLegNumber >= updated.totalLegs;
+  
+          setDialog({
+            title: `Manche ${updated.currentLegNumber} terminée`,
+            message: `${who} gagne la manche 🎯`,
+            actions: [
+              {
+                label: "Rejouer cette manche",
+                onClick: () => {
+                  setMatch((m) => {
+                    const cur = structuredClone(m);
+                    cur.leg = createLeg(cur.leg.startingScore, Object.values(cur.leg.players));
+                    return cur;
+                  });
+                  setDialog(null);
+                },
+              },
+              ...(isLastLeg
+                ? [
+                    {
+                      label: "Terminer le match",
+                      onClick: () => setDialog(null),
+                    },
+                  ]
+                : [
+                    {
+                      label: "Manche suivante",
+                      onClick: () => {
+                        setMatch((m) => nextLeg(structuredClone(m), true));
+                        setDialog(null);
+                      },
+                    },
+                  ]),
+            ],
+          });
+        }
+  
+        return updated;
+      });
+    }
+  
+    /* =====================================================
+       🎨 Rendu principal
+       ===================================================== */
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          background: arcade
+            ? "radial-gradient(1200px 600px at 30% -10%, #0d0f2a, #050510 40%, #000), linear-gradient(135deg, rgba(0,255,204,.08), rgba(255,0,128,.05))"
+            : "radial-gradient(1200px 600px at 30% -10%, #141517, #0a0a0a 40%, #000)",
+          color: "#fff",
+          paddingBottom: 80,
+          fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+        }}
+      >
+        <GlobalStyles />
+        <TopGlassNav route={route} setRoute={setRoute} />
+  
+        <main style={{ maxWidth: 1000, margin: "0 auto", padding: 16 }}>
+          {route === "home" && (
+            <Home
+              account={account}
+              loggedIn={loggedIn}
+              onGoGames={() => setRoute("games")}
+              onGoProfiles={() => setRoute("profiles")}
+              onGoStats={() => setRoute("stats")}
+              onGoOnline={() => setRoute("online")}
+              onGoLogin={() => setRoute("account")}
+            />
+          )}
+  
+          {route === "games" && <GamesHub current={mode} onPick={startLobby} />}
+  
+          {route === "profiles" && (
+            <ProfilesPage
+              profiles={profiles}
+              setProfiles={setProfiles}
+              teams={teams}
+              setTeams={setTeams}
+              events={events}
+              account={account}
+              loggedIn={loggedIn}
+              onOpenAccount={() => setRoute("account")}
+            />
+          )}
+  
+          {route === "allgames" && (
+            <AllGamesPage
+              games={games}
+              events={events}
+              profiles={profiles}
+              onOpen={(id) => console.log("open", id)}
+            />
+          )}
+  
+          {route === "lobby" && (
+            <LobbyPage
+              mode={mode}
+              teams={teams}
+              profiles={profiles}
+              rules={rules}
+              setRules={setRules}
+              onStart={launchGame}
+              onBack={() => setRoute("games")}
+            />
+          )}
+  
+          {route === "game" && (
+            <GamePage
+              mode={mode}
+              rules={rules}
+              players={players}
+              setPlayers={setPlayers}
+              activeId={activeId}
+              setActiveId={setActiveId}
+              onEnd={() => setRoute("home")}
+              speak={speak}
+              ttsLang={ttsLang}
+              // onX01Submit={handleSubmitX01} // ← active si ton GamePage le reçoit
+            />
+          )}
+  
+          {route === "gamestats" && (
+            <GameStatsPage players={players} onBack={() => setRoute("game")} />
+          )}
+  
+          {route === "stats" && <StatsPage profiles={profiles} />}
+  
+          {route === "teams" && <TeamsPage teams={teams} setTeams={setTeams} />}
+  
+          {route === "settings" && (
+            <SettingsPage
+              rules={rules}
+              setRules={setRules}
+              arcade={arcade}
+              setArcade={setArcade}
+              ttsEnabled={ttsEnabled}
+              setTtsEnabled={setTtsEnabled}
+              ttsLang={ttsLang}
+              setTtsLang={setTtsLang}
+            />
+          )}
+  
+          {/* === Comptes / Online === */}
+          {route === "account" && (
+            <AccountPage
+              account={account}
+              loggedIn={loggedIn}
+              onCreate={(acc) => {
+                setAccount(acc);
+                setLoggedIn(true);
+                setRoute("home");
+              }}
+              onLogin={(ok) => {
+                if (ok) {
+                  setLoggedIn(true);
+                  setRoute("home");
+                }
+              }}
+              onLogout={() => setLoggedIn(false)}
+              onGoFriends={() => setRoute("friends")}
+            />
+          )}
+  
+          {route === "friends" && (
+            <FriendsPage
+              friends={friends}
+              setFriends={setFriends}
+              onBack={() => setRoute("account")}
+            />
+          )}
+  
+          {route === "online" && (
+            <OnlineLobbyPage
+              account={account}
+              loggedIn={loggedIn}
+              lobbies={lobbies}
+              setLobbies={setLobbies}
+              onBack={() => setRoute("home")}
+            />
+          )}
+        </main>
+  
+        {dialog && <SimpleDialog {...dialog} />}
+  
+        <BottomNav route={route} setRoute={setRoute} />
+      </div>
+    );
+  }  
 
-       {dialog && <SimpleDialog {...dialog} />}
-
-      <BottomNav route={route} setRoute={setRoute} />
-    </div>
-  );
-}
-
-/* =========================================
-   AccountPage — création/connexion + avatar
-   ========================================= */
    function AccountPage({
     account,
     loggedIn,
@@ -2065,335 +2047,205 @@ function GamesHub({
   
 /* =========================================
    LobbyPage (profil-compte en tête + badge "COMPTE")
+   -> version intégrée avec X01Setup
    ========================================= */
+
    function LobbyPage({
-    mode,
-    teams,
-    profiles,
-    rules,
-    setRules,
-    onStart,
-    onBack,
-  }: {
-    mode: Mode;
-    teams: Team[];
-    profiles: Profile[];
-    rules: MatchRules;
-    setRules: (r: MatchRules) => void;
-    onStart: (players: Player[], customRules?: MatchRules) => void;
-    onBack: () => void;
-  }) {
-    // état local
-    const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
-    const [localRules, setLocalRules] = React.useState<MatchRules>(rules);
-  
-    // place le/les profils "acc:..." en tête de liste
-    const sortedProfiles = React.useMemo(() => {
-      const acc = profiles.filter(p => p.id.startsWith("acc:"));
-      const others = profiles.filter(p => !p.id.startsWith("acc:"));
-      return [...acc, ...others];
-    }, [profiles]);
-  
-    // shuffle Fisher–Yates
-    function shuffle<T>(arr: T[]): T[] {
-      const a = [...arr];
-      for (let i = a.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [a[i], a[j]] = [a[j], a[i]];
-      }
-      return a;
-    }
-  
-    function toggle(id: string) {
-      setSelectedIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
-    }
-  
-    function reshuffleSelected() {
-      setSelectedIds((ids) => shuffle(ids));
-    }
-  
-    function onToggleRandomOrder(checked: boolean) {
-      setLocalRules((r) => ({ ...r, randomOrder: checked }));
-      if (checked) reshuffleSelected();
-    }
-  
-    function start() {
-      const chosen = selectedIds
-        .map((id) => profiles.find((p) => p.id === id))
-        .filter(Boolean)
-        .map<Player>((p) => ({
-          id: uid(),
-          name: p!.name,
-          profileId: p!.id,
-          avatarDataUrl: p!.avatarDataUrl,
-          teamId: p!.teamId,
-          x01Score: localRules.startingScore,
-          legs: 0,
-          sets: 0,
-          dartsUsed: 0,
-          lastScore: 0,
-          points: 0,
-          lives: 3,
-          atcTarget: 1,
-        }));
-  
-      if (chosen.length === 0) {
-        alert("Sélectionne au moins 1 joueur.");
-        return;
-      }
-  
-      const finalPlayers = localRules.randomOrder ? shuffle(chosen) : chosen;
-      onStart(finalPlayers, localRules);
-    }
-  
-    return (
-      <section style={{ display: "grid", gap: 12 }}>
-        {/* Top bar */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <GlassButton onClick={onBack} leftIcon="folder">Retour</GlassButton>
-          <div style={{ opacity: 0.8 }}>Mode : <b>{mode}</b></div>
-        </div>
-  
-        {/* Deux colonnes : Joueurs / Paramètres */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          {/* === Colonne Joueurs === */}
-          <div
-            style={{
-              border: "1px solid rgba(255,255,255,.08)",
-              background: "linear-gradient(180deg, rgba(20,20,24,.45), rgba(10,10,12,.55))",
-              borderRadius: 12,
-              padding: 12,
-            }}
-          >
-            <div style={{ fontWeight: 700, marginBottom: 8 }}>Joueurs</div>
-  
-            <div style={{ display: "grid", gap: 6, maxHeight: 360, overflow: "auto", paddingRight: 4 }}>
-              {sortedProfiles.map((p) => {
-                const index = selectedIds.indexOf(p.id);
-                const is = index !== -1;
-                const isAccount = p.id.startsWith("acc:");
-  
-                return (
-                  <button
-                    key={p.id}
-                    onClick={() => toggle(p.id)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      textAlign: "left",
-                      padding: 8,
-                      borderRadius: 10,
-                      border: "1px solid rgba(255,255,255,.08)",
-                      background: is
-                        ? "radial-gradient(120px 60px at 50% -20%, rgba(245,158,11,.35), rgba(245,158,11,.08))"
-                        : "#0e0e10",
-                      color: is ? "var(--c-primary)" : "#e7e7e7",
-                      fontWeight: is ? 800 : 600,
-                      cursor: "pointer",
-                    }}
-                  >
-                    {/* badge d'ordre */}
-                    <div
-                      style={{
-                        width: 26,
-                        height: 26,
-                        borderRadius: 999,
-                        display: "grid",
-                        placeItems: "center",
-                        fontSize: 12,
-                        fontWeight: 900,
-                        background: is ? "var(--c-primary)" : "#222",
-                        color: is ? "#111" : "#aaa",
-                        border: "1px solid rgba(255,255,255,.12)",
-                        flex: "0 0 auto",
-                      }}
-                      title={is ? `Ordre #${index + 1}` : "Non sélectionné"}
-                    >
-                      {is ? index + 1 : "—"}
-                    </div>
-  
-                    <Avatar name={p.name} src={p.avatarDataUrl} />
-  
-                    {/* Nom + sous-ligne (équipe) + badge COMPTE */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      <span>{p.name}</span>
-  
-                      {isAccount && (
-                        <span
-                          style={{
-                            fontSize: 11,
-                            fontWeight: 900,
-                            padding: "2px 8px",
-                            borderRadius: 999,
-                            background:
-                              "linear-gradient(180deg, rgba(245,158,11,.25), rgba(245,158,11,.10))",
-                            border: "1px solid rgba(245,158,11,.45)",
-                            color: "var(--c-primary)",
-                            letterSpacing: 0.3,
-                            textTransform: "uppercase",
-                          }}
-                          title="Profil issu de votre compte"
-                        >
-                          Compte
-                        </span>
-                      )}
-  
-                      <div style={{ width: "100%", fontSize: 12, opacity: 0.7 }}>
-                        {teams.find((t) => t.id === p.teamId)?.name || "(Aucune équipe)"}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-  
-          {/* === Colonne Paramètres === */}
-          <div
-            style={{
-              border: "1px solid rgba(255,255,255,.08)",
-              background: "linear-gradient(180deg, rgba(20,20,24,.45), rgba(10,10,12,.55))",
-              borderRadius: 12,
-              padding: 12,
-            }}
-          >
-            <div style={{ fontWeight: 700, marginBottom: 8 }}>Paramètres</div>
-  
-            {mode === "X01" && (
-              <>
-                <div style={{ marginBottom: 6, opacity: 0.8 }}>Score de départ</div>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
-                  {[301, 501, 701, 1001].map((s) => (
-                    <GlassButton
-                      key={s}
-                      onClick={() => setLocalRules({ ...localRules, startingScore: s })}
-                      active={localRules.startingScore === s}
-                    >
-                      {s}
-                    </GlassButton>
-                  ))}
-                </div>
-                <label style={{ display: "flex", alignItems: "center", gap: 8, opacity: 0.9 }}>
-                  <input
-                    type="checkbox"
-                    checked={localRules.doubleOut}
-                    onChange={(e) => setLocalRules({ ...localRules, doubleOut: e.target.checked })}
-                  />
-                  Sortie en double
-                </label>
-              </>
-            )}
-  
-            {/* Legs / Sets */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
-              <div>
-                <div style={{ marginBottom: 4, opacity: 0.8 }}>Legs / set</div>
-                <input
-                  type="number"
-                  min={1}
-                  value={localRules.legsToWinSet}
-                  onChange={(e) =>
-                    setLocalRules({
-                      ...localRules,
-                      legsToWinSet: Math.max(1, Number(e.target.value) || 1),
-                    })
-                  }
-                  style={{
-                    width: "100%",
-                    padding: "8px 10px",
-                    borderRadius: 10,
-                    border: "1px solid #333",
-                    background: "#0f0f10",
-                    color: "#eee",
-                  }}
-                />
-              </div>
-              <div>
-                <div style={{ marginBottom: 4, opacity: 0.8 }}>Sets / match</div>
-                <input
-                  type="number"
-                  min={1}
-                  value={localRules.setsToWinMatch}
-                  onChange={(e) =>
-                    setLocalRules({
-                      ...localRules,
-                      setsToWinMatch: Math.max(1, Number(e.target.value) || 1),
-                    })
-                  }
-                  style={{
-                    width: "100%",
-                    padding: "8px 10px",
-                    borderRadius: 10,
-                    border: "1px solid #333",
-                    background: "#0f0f10",
-                    color: "#eee",
-                  }}
-                />
-              </div>
-            </div>
-  
-            {/* ===== Ordre de jeu ===== */}
-            <div
-              style={{
-                marginTop: 12,
-                padding: 10,
-                borderRadius: 12,
-                border: "1px solid rgba(255,255,255,.08)",
-                background: "linear-gradient(180deg, rgba(20,20,24,.45), rgba(10,10,12,.55))",
-              }}
-            >
-              <div style={{ fontWeight: 700, marginBottom: 6 }}>Ordre de jeu</div>
-              <label style={{ display: "inline-flex", alignItems: "center", gap: 8, opacity: 0.9 }}>
-                <input
-                  type="checkbox"
-                  checked={!!localRules.randomOrder}
-                  onChange={(e) => onToggleRandomOrder(e.target.checked)}
-                />
-                Tirage aléatoire au lancement
-              </label>
-  
-              <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
-                <GlassButton onClick={reshuffleSelected}>Mélanger maintenant</GlassButton>
-              </div>
-  
-              <div style={{ fontSize: 12, opacity: 0.7, marginTop: 6 }}>
-                Astuce : l’ordre affiché (#1, #2, …) est celui utilisé au démarrage.
-              </div>
-            </div>
-  
-            {/* Actions */}
-            <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
-              <GlassButton onClick={start} leftIcon="dart">Lancer la partie</GlassButton>
-              <GlassButton onClick={onBack} leftIcon="folder">Annuler</GlassButton>
-            </div>
-          </div>
-        </div>
-      </section>
-    );
-  }   
+     mode,
+     teams,
+     profiles,
+     rules,
+     setRules,
+     onStart,
+     onBack,
+   }: {
+     mode: Mode;
+     teams: Team[];
+     profiles: Profile[];
+     rules: MatchRules;
+     setRules: (r: MatchRules) => void;
+     onStart: (players: Player[], customRules?: MatchRules) => void;
+     onBack: () => void;
+   }) {
+     // place le/les profils "acc:..." en tête de liste
+     const sortedProfiles = React.useMemo(() => {
+       const acc = profiles.filter((p) => p.id.startsWith("acc:"));
+       const others = profiles.filter((p) => !p.id.startsWith("acc:"));
+       return [...acc, ...others];
+     }, [profiles]);
+   
+     // convertit un "profil" (sélection X01Setup) vers ton Player de partie
+     function profileToPlayer(p: Profile): Player {
+       return {
+         id: uid(),
+         name: p.name,
+         profileId: p.id,
+         avatarDataUrl: p.avatarDataUrl,
+         teamId: p.teamId,
+         // états runtime jeu
+         x01Score: rules.startingScore,
+         legs: 0,
+         sets: 0,
+         dartsUsed: 0,
+         lastScore: 0,
+         points: 0,
+         lives: 3,
+         atcTarget: 1,
+       };
+     }
+   
+     // mapping X01Settings (AutoDarts) -> MatchRules de ton app
+     function mapSettingsToRules(s: X01Settings): MatchRules {
+       const next: MatchRules = {
+         ...rules,
+         startingScore: s.baseScore,
+         // "doubleOut" dans ton modèle actuel = vrai si outMode impose un double à la sortie
+         doubleOut: s.outMode === "double" || s.outMode === "master",
+         // legs / sets
+         legsToWinSet:
+           s.matchMode === "sets" ? (s.legsPerSetToWin ?? 3) : (rules.legsToWinSet ?? 3),
+         setsToWinMatch:
+           s.matchMode === "sets" ? (s.setsToWin ?? 2) : (rules.setsToWinMatch ?? 1),
+         matchMode: s.matchMode, // si tu as ce champ dans MatchRules; sinon enlève cette ligne
+         bullMode: s.bullMode,   // idem : stock si tu l'as, pour 25/50 vs 50/50
+         bullOff: s.bullOff,     // idem
+         // ordre aléatoire au start : on le gère ici directement (pas besoin d’état dédié)
+         randomOrder: rules.randomOrder ?? false,
+       };
+       if (s.matchMode === "legs") {
+         // mode "legs": partie gagnée au meilleur des N legs (first to N)
+         next.legsWinMatch = s.legsToWin ?? 3; // si ton modèle a ce champ, sinon ignore
+         // on peut laisser setsToWinMatch=1 (pas de sets)
+         next.setsToWinMatch = 1;
+       }
+       if (s.matchMode === "off") {
+         // sans limite de match -> valeurs par défaut "1 set / 1 leg" (ou celles déjà en place)
+         next.setsToWinMatch = next.setsToWinMatch ?? 1;
+         next.legsToWinSet = next.legsToWinSet ?? 3;
+       }
+       return next;
+     }
+   
+     function shuffle<T>(arr: T[]): T[] {
+       const a = [...arr];
+       for (let i = a.length - 1; i > 0; i--) {
+         const j = Math.floor(Math.random() * (i + 1));
+         [a[i], a[j]] = [a[j], a[i]];
+       }
+       return a;
+     }
+   
+     // handler appelé par X01Setup
+     function handleStartX01(settings: X01Settings, picked: X01PickPlayer[]) {
+       // reconstruire les Player complets depuis les Profile originaux
+       const chosen: Player[] = picked
+         .map((sp) => profiles.find((pp) => pp.id === sp.id))
+         .filter(Boolean)
+         .map((p) => profileToPlayer(p!));
+   
+       if (chosen.length === 0) {
+         alert("Sélectionne au moins 1 joueur.");
+         return;
+       }
+   
+       const newRules = mapSettingsToRules(settings);
+   
+       // si tu veux un ordre aléatoire de départ, fais-le ici
+       const finalPlayers = newRules.randomOrder ? shuffle(chosen) : chosen;
+   
+       setRules(newRules);
+       onStart(finalPlayers, newRules);
+     }
+   
+     // prépare les joueurs pour X01Setup (shape minimal: id, name, avatarUrl)
+     const pickerPlayers = React.useMemo(
+       () =>
+         sortedProfiles.map((p) => ({
+           id: p.id,
+           name: p.name,
+           avatarUrl: p.avatarDataUrl,
+         })),
+       [sortedProfiles]
+     );
+   
+     return (
+       <section style={{ display: "grid", gap: 12 }}>
+         {/* Top bar */}
+         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+           <GlassButton onClick={onBack} leftIcon="folder">
+             Retour
+           </GlassButton>
+           <div style={{ opacity: 0.8 }}>
+             Mode : <b>{mode}</b>
+           </div>
+         </div>
+   
+         {/* Réglages + sélection de joueurs (X01Setup) */}
+         <X01Setup
+           allPlayers={pickerPlayers}
+           onStart={handleStartX01}
+           onCancel={onBack}
+           // tu peux passer des valeurs par défaut si tu veux partir de "rules"
+           defaultSettings={{
+             baseScore: rules.startingScore as 301 | 501 | 701 | 1001,
+             outMode: rules.doubleOut ? "double" : "straight",
+           }}
+         />
+       </section>
+     );
+   } 
 
-// ===== Mini-checkouts X01 (exemple) =====
-const MINI_CHECKOUTS: Record<number, string> = {
-  170:"T20 T20 Bull",167:"T20 T19 Bull",164:"T20 T18 Bull",161:"T20 T17 Bull",
-  160:"T20 T20 D20",158:"T20 T20 D19",157:"T20 T19 D20",156:"T20 T20 D18",
-  155:"T20 T19 D19",154:"T20 T18 D20",153:"T20 T19 D18",152:"T20 T20 D16",
-  151:"T20 T17 D20",150:"T20 T18 D18",149:"T20 T19 D16",148:"T20 T16 D20",
-  147:"T20 T17 D18",146:"T20 T18 D16",145:"T20 T15 D20",144:"T20 T20 D12",
-  141:"T20 T19 D12",140:"T20 T20 D10",136:"T20 T20 D8",132:"Bull Bull D16",
-  130:"T20 20 Bull",129:"T19 20 Bull",121:"T20 11 D20",120:"T20 20 D20",
-  117:"T20 17 D20",116:"T20 16 D20",115:"T20 15 D20",112:"T20 12 D20",
-  110:"T20 10 D20",100:"T20 D20",96:"T20 D18",95:"T19 D19",94:"T18 D20",
-  90:"T20 D15",86:"T18 D16",84:"T20 D12",81:"T15 D18",80:"T20 D10",
-  78:"T18 D12",76:"T20 D8",74:"T14 D16",72:"T16 D12",70:"T18 D8",
-  68:"T20 D4",66:"T10 D18",64:"T16 D8",62:"T10 D16",60:"20 D20",
-  58:"18 D20",56:"16 D20",54:"14 D20",52:"20 D16",50:"10 D20",
-  48:"16 D16",46:"6 D20",44:"12 D16",40:"D20",38:"D19",36:"D18",
-  32:"D16",28:"D14",24:"D12",20:"D10",16:"D8",12:"D6",8:"D4",6:"D3",4:"D2",2:"D1",
-};
-
-// Expose pour GamePage (liveCheckout)
-;(globalThis as any).CHECKOUTS = MINI_CHECKOUTS;
+/* =========================================
+   Générateur de checkout (double-out)
+   - Respecte bull 25/50 ou 50/50
+   - Cherche 1, 2, puis 3 fléchettes
+   ========================================= */
+   function suggestCheckout(
+    remaining: number,
+    opts?: { bullMode?: "25/50" | "50/50" }
+  ) {
+    if (remaining < 2 || remaining > 170) return "";
+    const bull50 = 50;
+    const bull25 = opts?.bullMode === "50/50" ? 50 : 25;
+    const singles = Array.from({ length: 20 }, (_, i) => i + 1).concat([bull25]);
+    const doubles = Array.from({ length: 20 }, (_, i) => 2 * (i + 1)).concat([bull50]);
+    const triples = Array.from({ length: 20 }, (_, i) => 3 * (i + 1));
+  
+    const S = singles.map((v) => ({ v, tag: v === bull25 ? "S25" : `S${v}` }));
+    const D = doubles.map((v) => ({ v, tag: v === bull50 ? "DBull" : `D${v / 2}` }));
+    const T = triples.map((v) => ({ v, tag: `T${v / 3}` }));
+  
+    // 1 dart (Double direct)
+    for (const d of D) if (d.v === remaining) return d.tag === "DBull" ? "Bull" : d.tag;
+  
+    // 2 darts: X + Double
+    const firsts2 = [...T, ...S];
+    for (const a of firsts2) {
+      const need = remaining - a.v;
+      if (need > 0 && D.some((d) => d.v === need)) {
+        const fin = D.find((d) => d.v === need)!;
+        return `${a.tag === "S25" ? "25" : a.tag} ${fin.tag === "DBull" ? "Bull" : fin.tag}`;
+      }
+    }
+  
+    // 3 darts: X + Y + Double
+    const firsts3 = [...T, ...T, ...S];
+    const seconds3 = [...T, ...S];
+    for (const a of firsts3) {
+      for (const b of seconds3) {
+        const need = remaining - a.v - b.v;
+        if (need > 0 && D.some((d) => d.v === need)) {
+          const fin = D.find((d) => d.v === need)!;
+          const A = a.tag === "S25" ? "25" : a.tag;
+          const B = b.tag === "S25" ? "25" : b.tag;
+          const C = fin.tag === "DBull" ? "Bull" : fin.tag;
+          return `${A} ${B} ${C}`;
+        }
+      }
+    }
+  
+    return "";
+  }  
 
 /* =========================================
    GamePage — volée = 3 fléchettes (dartsUsed +3 par volée)
@@ -2456,14 +2308,13 @@ const MINI_CHECKOUTS: Record<number, string> = {
       return ((total / darts) * 3).toFixed(2);
     }
   
-    // Checkout live (X01 uniquement, 2..170)
+   // Checkout live (X01 uniquement)
     const liveCheckout = React.useMemo(() => {
       if (!active || mode !== "X01") return "";
-      const s = liveRemaining;
+    const s = liveRemaining;
       if (s <= 1 || s > 170) return "";
-      const MAP: Record<number, string> | undefined = (globalThis as any).CHECKOUTS;
-      return MAP && MAP[s] ? MAP[s] : "";
-    }, [active, mode, liveRemaining]);
+      return suggestCheckout(s, { bullMode: (rules as any).bullMode ?? "25/50" });
+    }, [active, mode, liveRemaining, rules]);
   
     // ===== appliquer la volée =====
     function applyX01(darts: Dart[]) {
